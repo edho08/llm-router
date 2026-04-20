@@ -69,6 +69,13 @@ export class ProxyController {
                   const json = JSON.parse(data);
                   if (json.choices && json.choices[0]) {
                     const choice = json.choices[0];
+
+                    // Replace <thought> with <think> and </thought> with </think> in delta content
+                    if (choice.delta?.content) {
+                      choice.delta.content = choice.delta.content
+                        .replace(/<thought>/g, '<think>')
+                        .replace(/<\/thought>/g, '</think>');
+                    }
                     
                     // Track if tool calls are being streamed
                     if (choice.delta?.tool_calls) {
@@ -101,11 +108,17 @@ export class ProxyController {
         // Standard JSON response
         const data = await response.text();
         try {
-          const json = JSON.parse(data);
-          if (json.choices && json.choices[0]?.message?.tool_calls) {
-            json.choices[0].finish_reason = 'tool_calls';
-          }
-          res.send(JSON.stringify(json));
+            const json = JSON.parse(data);
+            if (json.choices && json.choices[0]?.message?.tool_calls) {
+              json.choices[0].finish_reason = 'tool_calls';
+            }
+            // Replace <thought> with <think> and </thought> with </think> in message content
+            if (json.choices && json.choices[0]?.message?.content) {
+              json.choices[0].message.content = json.choices[0].message.content
+                .replace(/<thought>/g, '<think>')
+                .replace(/<\/thought>/g, '</think>');
+            }
+            res.send(JSON.stringify(json));
         } catch (e) {
           res.send(data);
         }

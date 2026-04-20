@@ -10,6 +10,7 @@ export const providerApi = {
   create: (data: any) => api.post('/providers', data),
   update: (id: number, data: any) => api.put(`/providers/${id}`, data),
   delete: (id: number) => api.delete(`/providers/${id}`),
+  test: (id: number) => api.post(`/providers/${id}/test`),
 };
 
 export const apiKeyApi = {
@@ -24,6 +25,7 @@ export const backendApi = {
   create: (providerId: number, data: any) => api.post(`/providers/${providerId}/backends`, data),
   update: (providerId: number, backendId: number, data: any) => api.put(`/providers/${providerId}/backends/${backendId}`, data),
   delete: (providerId: number, backendId: number) => api.delete(`/providers/${providerId}/backends/${backendId}`),
+  test: (providerId: number, backendId: number) => api.post(`/providers/${providerId}/backends/${backendId}/test`),
 };
 
 export default api;

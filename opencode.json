@@ -1,0 +1,17 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "freerouter": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Free Router",
+      "options": {
+        "baseURL": "http://localhost:3000/v1"
+      },
+      "models": {
+        "free-routed-model": {
+          "name": "Free Routed Model"
+        }
+      }
+    }
+  }
+}

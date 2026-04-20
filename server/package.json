@@ -15,7 +15,8 @@
     "express": "^5.2.1",
     "reflect-metadata": "^0.2.2",
     "sqlite3": "^5.1.7",
-    "typeorm": "^0.3.28"
+    "typeorm": "^0.3.28",
+    "weighted-random": "^0.1.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

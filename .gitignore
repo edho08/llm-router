@@ -3,5 +3,8 @@ dist/
 .env
 *.log
 .DS_Store
-C:\Edho\llm-router\server/dist
-C:\Edho\llm-router\client/dist
+server/dist/
+client/dist/
+*.sqlite
+*.db
+

@@ -35,4 +35,4 @@ npm start       # starts the server (node dist/index.js)
 - `dev` – runs server and client in parallel.
 
 ## License
-MIT License (or specify your own).
+MIT License © 2026 Edho Fiko

@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { RoutingService, TargetConfig } from '../../services/routing/RoutingService';
+import { RoutingService } from '../../services/routing/RoutingService';
 
 export class ProxyController {
   private routingService = new RoutingService();
@@ -49,11 +49,14 @@ export class ProxyController {
           return res.status(500).send('Failed to get response stream');
         }
 
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let hasToolCalls = false;
+          const decoder = new TextDecoder();
+          let buffer = '';
+          let hasToolCalls = false;
+          let lastUsage: any = null;
+          let googleThoughtBlockActive = false;
+          let reasoningIndexCounter = 0;
 
-        while (true) {
+         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
@@ -65,30 +68,52 @@ export class ProxyController {
             if (line.startsWith('data: ')) {
               const data = line.slice(6);
               if (data !== '[DONE]') {
-                try {
-                  const json = JSON.parse(data);
-                  if (json.choices && json.choices[0]) {
-                    const choice = json.choices[0];
-
-                    // Replace <thought> with <think> and </thought> with </think> in delta content
-                    if (choice.delta?.content) {
-                      choice.delta.content = choice.delta.content
-                        .replace(/<thought>/g, '<think>')
-                        .replace(/<\/thought>/g, '</think>');
+                 try {
+                   const json = JSON.parse(data);
+                    if (json.usage) {
+                      lastUsage = json.usage;
                     }
-                    
-                    // Track if tool calls are being streamed
-                    if (choice.delta?.tool_calls) {
-                      hasToolCalls = true;
-                      choice.delta.tool_calls = choice.delta.tool_calls.map((tc: any, i: number) => ({
-                        ...tc,
-                        index: tc.index ?? i
-                      }));
-                    }
+                    if (json.choices && json.choices[0]) {
+                      const choice = json.choices[0];
+                     
+                     // Track if tool calls are being streamed
+                     if (choice.delta?.tool_calls) {
+                       hasToolCalls = true;
+                       choice.delta.tool_calls = choice.delta.tool_calls.map((tc: any, i: number) => ({
+                         ...tc,
+                          index: tc.index ?? i
+                        }));
+                     }
 
-                    // Force finish_reason to tool_calls if we've seen tool calls
-                    if (choice.finish_reason === 'stop' && hasToolCalls) {
-                      choice.finish_reason = 'tool_calls';
+                     // Convert Google thought chunks to OpenRouter reasoning fields
+                     const isGoogleThought = choice.delta?.extra_content?.google?.thought === true;
+
+                     if (!choice.delta?.tool_calls && isGoogleThought) {
+                       if (!googleThoughtBlockActive) {
+                         googleThoughtBlockActive = true;
+                         reasoningIndexCounter += 1;
+                       }
+
+                       if (typeof choice.delta?.content === 'string' && choice.delta.content.length > 0) {
+                         const thoughtIndex = reasoningIndexCounter - 1;
+                         choice.delta.reasoning = choice.delta.content;
+                         choice.delta.reasoning_details = [
+                           {
+                             type: 'reasoning.text',
+                             text: choice.delta.content,
+                             format: 'unknown',
+                             index: thoughtIndex,
+                           },
+                         ];
+                         choice.delta.content = '';
+                       }
+                     } else {
+                       googleThoughtBlockActive = false;
+                     }
+
+                     // Force finish_reason to tool_calls if we've seen tool calls
+                     if (choice.finish_reason === 'stop' && hasToolCalls) {
+                       choice.finish_reason = 'tool_calls';
                     }
                   }
                   res.write(`data: ${JSON.stringify(json)}\n\n`);
@@ -103,6 +128,9 @@ export class ProxyController {
             }
           }
         }
+        if (lastUsage) {
+          console.log(`Target Usage: ${JSON.stringify(lastUsage)}`);
+        }
         res.end();
       } else {
         // Standard JSON response
@@ -112,11 +140,26 @@ export class ProxyController {
             if (json.choices && json.choices[0]?.message?.tool_calls) {
               json.choices[0].finish_reason = 'tool_calls';
             }
-            // Replace <thought> with <think> and </thought> with </think> in message content
-            if (json.choices && json.choices[0]?.message?.content) {
-              json.choices[0].message.content = json.choices[0].message.content
-                .replace(/<thought>/g, '<think>')
-                .replace(/<\/thought>/g, '</think>');
+            if (
+              json.choices &&
+              json.choices[0]?.message &&
+              typeof json.choices[0].message.content === 'string' &&
+              !json.choices[0].message.tool_calls &&
+              json.choices[0].message?.extra_content?.google?.thought === true
+            ) {
+              json.choices[0].message.reasoning = json.choices[0].message.content;
+              json.choices[0].message.reasoning_details = [
+                {
+                  type: 'reasoning.text',
+                  text: json.choices[0].message.content,
+                  format: 'unknown',
+                  index: 0,
+                },
+              ];
+              json.choices[0].message.content = '';
+            }
+            if (json.usage) {
+              console.log(`Target Usage: ${JSON.stringify(json.usage)}`);
             }
             res.send(JSON.stringify(json));
         } catch (e) {
